@@ -20,33 +20,12 @@ Uses single-shot, high-repeatability measurements without clock
 stretching. Every word is CRC-checked; a bad value is never returned.
 """
 
-import time
-from kdmp.sensors.base import SensorDriver, position_id
+from kdmp.sensors.base import SensorDriver, position_id, crc8, sleep_ms
 
 _CMD_MEASURE = b"\x24\x00"   # single shot, high repeatability, no clock stretching
 _CMD_SERIAL = b"\x36\x82"    # read serial number, no clock stretching
 _MEASURE_WAIT_MS = 20        # datasheet max 15ms for high repeatability
 _SERIAL_WAIT_MS = 10
-
-
-def _sleep_ms(ms):
-	try:
-		time.sleep_ms(ms)
-	except AttributeError:  # CPython
-		time.sleep(ms / 1000)
-
-
-def crc8(data):
-	"""Sensirion CRC-8: polynomial 0x31, init 0xFF."""
-	crc = 0xFF
-	for b in data:
-		crc ^= b
-		for _ in range(8):
-			if crc & 0x80:
-				crc = ((crc << 1) ^ 0x31) & 0xFF
-			else:
-				crc = (crc << 1) & 0xFF
-	return crc
 
 
 def _words(buf):
@@ -59,6 +38,8 @@ def _words(buf):
 
 
 class SHT3x(SensorDriver):
+	quantities = ("temperature", "humidity")
+
 	def __init__(self, i2c, addr=0x44, bus=None, model="sht30", log=None):
 		self.model = model
 		super().__init__(log)
@@ -75,7 +56,7 @@ class SHT3x(SensorDriver):
 
 	def _transact(self, cmd, wait_ms):
 		self._i2c.writeto(self._addr, cmd)
-		_sleep_ms(wait_ms)
+		sleep_ms(wait_ms)
 		return _words(self._i2c.readfrom(self._addr, 6))
 
 	def _read_serial(self):
