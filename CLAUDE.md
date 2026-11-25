@@ -17,10 +17,19 @@ Edits happen in a standalone clone of this repo, never in a consuming project's 
 - Never create `machine.Pin`/`machine.I2C` etc. inside the package — callers pass them in. No board-specific assumptions.
 - Never import `itk_pico`.
 - Log via `kdmp.log.get("<name>")` with `%`-style args (lazy formatting); drivers accept an optional `log=` override.
-- Sensor drivers subclass `kdmp.sensors.base.SensorDriver`: `ids()` → list of ID strings, `read()` → list of reading dicts; `read()` never raises, omits unmeasured quantities and failed sensors.
+- Sensor drivers subclass `kdmp.sensors.base.SensorDriver`: `ids()` → list of ID strings, `read()` → list of reading dicts; `read()` never raises, omits unmeasured quantities and failed sensors. Each driver sets the class attribute `quantities` to the tuple of quantity names it measures (`temperature`, `humidity`, `co2`).
+- Shared helpers live in `sensors/base.py` (`crc8` for Sensirion parts, `sleep_ms`, `position_id`); don't duplicate them in drivers.
+- Every wait inside a driver must be short (≤500 ms) so callers can keep feeding a hardware watchdog.
 - Name files after a sensor only when dedicated to it.
 - Keep code importable under CPython too where cheap (guarded `time.sleep_ms`/`ticks_ms`) so it can be syntax/unit-checked on a host.
 - Tabs for indentation (matches consuming projects).
+
+## SCD4x gotchas
+- While periodic measurement is running, send **only** `read_measurement`, `get_data_ready_status`, `stop_periodic_measurement` or the ambient-pressure commands. Anything else is undefined (it looked like resets in testing). Stop first (500 ms) for everything else.
+- Never send a command while the previous one is still executing; respect each command's wait time.
+- Never run `perform_self_test` (10 s) in the driver; it would trip a caller's watchdog.
+- Don't call `persist_settings`: offset/altitude are written to RAM at each init.
+- A sensor in an odd state may NACK everything until fully power-cycled; a soft reset doesn't power it down. The driver re-inits after 3 failures, then every 10th, and logs an error saying so.
 
 ## Machine-specific notes (private, not committed)
 

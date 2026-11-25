@@ -17,3 +17,4 @@
 ## Later
 - Migrate Wi-Fi connect/reconnect into `kdmp.net`. Keep the bounded timeouts and the watchdog feeding.
 - Migrate DS18B20 into `kdmp.sensors.ds18b20`. Start one conversion for the whole bus, wait at least 750 ms, then read every probe. When no devices are found, log it and return an empty list instead of raising.
+- SCD4x: optional forced recalibration (FRC) and automatic self-calibration (ASC) control. ASC is on by default, which suits rooms ventilated daily. Calibrate CO2 on the sensor, not with a software offset.

@@ -19,18 +19,25 @@ bus with N probes), so:
       {"sensor": "20e80802", "model": "sht30",
        "temperature": 20.92, "humidity": 49.9}
 
-  Quantities a sensor doesn't measure are left out (never None).
+  Known quantities: ``temperature`` (C, float), ``humidity`` (%RH,
+  float), ``co2`` (ppm, int). Quantities a sensor doesn't measure are
+  left out (never None).
   A sensor whose reading failed is left out of the list.
 - ``read()`` must never raise: log the problem and return what you have.
+- ``quantities`` (class attribute) is a tuple of the quantity names the
+  driver measures, so callers know what a sensor provides before any
+  read (e.g. to check which sensor supplies which value).
 
 Drivers take bus/pin objects from the caller and never create them.
 """
 
+import time
 from kdmp import log as _logmod
 
 
 class SensorDriver:
 	model = "unknown"
+	quantities = ()
 
 	def __init__(self, log=None):
 		self.log = log if log is not None else _logmod.get(self.model)
@@ -55,3 +62,24 @@ def position_id(bus, addr):
 	except Exception:
 		board = "unknown"
 	return "%s-i2c%s-%02x" % (board, bus, addr)
+
+
+def sleep_ms(ms):
+	"""time.sleep_ms on MicroPython, with a CPython fallback for host tests."""
+	try:
+		time.sleep_ms(ms)
+	except AttributeError:  # CPython
+		time.sleep(ms / 1000)
+
+
+def crc8(data):
+	"""Sensirion CRC-8 (SHT3x, SCD4x, ...): polynomial 0x31, init 0xFF."""
+	crc = 0xFF
+	for b in data:
+		crc ^= b
+		for _ in range(8):
+			if crc & 0x80:
+				crc = ((crc << 1) ^ 0x31) & 0xFF
+			else:
+				crc = (crc << 1) & 0xFF
+	return crc
